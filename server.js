@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const { testConnection } = require('./db/connection');
 
 const app = express();
 
@@ -11,10 +12,16 @@ app.use(express.json());
 // app.use('/api/auth', require('./routes/auth'));
 
 app.get('/', (req, res) => {
-  res.json({ message: 'CSCI 305 Backend API is running.' });
+  res.json({ message: 'PulseED Backend API is running.' });
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
+  try {
+    await testConnection();
+    console.log('Database connected successfully.');
+  } catch (err) {
+    console.error('Database connection failed:', err.message);
+  }
 });
