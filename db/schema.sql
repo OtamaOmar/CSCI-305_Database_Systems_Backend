@@ -38,6 +38,44 @@ CREATE TABLE IF NOT EXISTS patients (
   PRIMARY KEY (id)
 );
 
+-- ─────────────────────────────────────────  (Omar)
+-- Table: doctors
+-- Medical staff available for scheduling
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS doctors (
+  id          VARCHAR(10)                       NOT NULL,
+  name        VARCHAR(100)                      NOT NULL,
+  email       VARCHAR(150)                      NOT NULL,
+  specialty   VARCHAR(100)                      NOT NULL,
+  department  VARCHAR(100)                      NOT NULL,
+  shift       ENUM('Morning', 'Evening', 'Night') NOT NULL,
+  status      ENUM('On duty', 'On call', 'Off duty') NOT NULL,
+  phone       VARCHAR(30)                       NULL,
+  notes       TEXT                              NULL,
+  created_at  TIMESTAMP                         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+);
+
+-- ─────────────────────────────────────────
+-- Table: emergency_cases
+-- Live emergency intake and tracking
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS emergency_cases (
+  id           VARCHAR(10)                           NOT NULL,
+  name         VARCHAR(100)                          NOT NULL,
+  age          TINYINT UNSIGNED                      NOT NULL,
+  gender       ENUM('Male', 'Female', 'Other')       NOT NULL,
+  complaint    VARCHAR(200)                          NOT NULL,
+  room         VARCHAR(50)                           NOT NULL,
+  doctor       VARCHAR(100)                          NOT NULL,
+  severity     ENUM('Critical', 'Urgent', 'Stable')  NOT NULL,
+  status       ENUM('Incoming', 'In treatment', 'Stabilized', 'Discharged') NOT NULL,
+  arrival_time DATETIME                              NULL,
+  notes        TEXT                                  NULL,
+  created_at   TIMESTAMP                             NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id)
+);
+
 -- ─────────────────────────────────────────
 -- Table: notifications
 -- Emergency alerts and system notifications

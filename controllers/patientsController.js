@@ -13,7 +13,7 @@ const createPatient = async (req, res) => {
   const { id, name, age, gender, condition, doctor, bay, level } = req.body;
   try {
     await db.query(
-      'INSERT INTO patients (id, name, age, gender, condition, doctor, bay, level) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO patients (id, name, age, gender, `condition`, doctor, bay, `level`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [id, name, age, gender, condition, doctor, bay, level]
     );
     res.status(201).json({ message: 'Patient created successfully.', id });
@@ -27,7 +27,7 @@ const updatePatient = async (req, res) => {
   const { name, age, gender, condition, doctor, bay, level } = req.body;
   try {
     const [result] = await db.query(
-      'UPDATE patients SET name = ?, age = ?, gender = ?, condition = ?, doctor = ?, bay = ?, level = ? WHERE id = ?',
+      'UPDATE patients SET name = ?, age = ?, gender = ?, `condition` = ?, doctor = ?, bay = ?, `level` = ? WHERE id = ?',
       [name, age, gender, condition, doctor, bay, level, id]
     );
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Patient not found.' });

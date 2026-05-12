@@ -12,6 +12,8 @@ app.use(express.json());
 app.use('/api/auth',     require('./routes/auth'));
 app.use('/api/patients',      require('./routes/patients'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/doctors',       require('./routes/doctors'));
+app.use('/api/cases',         require('./routes/cases'));
 
 app.get('/', (req, res) => {
   res.json({ message: 'PulseED Backend API is running.' });
