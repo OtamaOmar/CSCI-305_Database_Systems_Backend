@@ -1,7 +1,8 @@
 -- PulseED — Hospital Emergency Department System
 -- Database Schema
 
-CREATE DATABASE IF NOT EXISTS csci305_db;
+DROP DATABASE IF EXISTS csci305_db;
+CREATE DATABASE csci305_db;
 USE csci305_db;
 
 -- ─────────────────────────────────────────
@@ -57,11 +58,11 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 -- Users (passwords are bcrypt hashes of 'password123')
 INSERT INTO users (first_name, last_name, email, password, hospital, role) VALUES
-  ('Sarah',   'Mitchell', 'sarah.mitchell@pulseED.com', '$2a$10$Xy1Qz3Lm8Pn2Kv4Jt7RuO5Ws9Yd6Xb3Nc1Mf0Ha2Ig4El5Dk7Cj', 'City General Hospital',   'doctor'),
-  ('James',   'Carter',   'james.carter@pulseED.com',   '$2a$10$Xy1Qz3Lm8Pn2Kv4Jt7RuO5Ws9Yd6Xb3Nc1Mf0Ha2Ig4El5Dk7Cj', 'City General Hospital',   'nurse'),
-  ('Priya',   'Nair',     'priya.nair@pulseED.com',     '$2a$10$Xy1Qz3Lm8Pn2Kv4Jt7RuO5Ws9Yd6Xb3Nc1Mf0Ha2Ig4El5Dk7Cj', 'Riverside Medical Center', 'doctor'),
-  ('Omar',    'Hassan',   'omar.hassan@pulseED.com',    '$2a$10$Xy1Qz3Lm8Pn2Kv4Jt7RuO5Ws9Yd6Xb3Nc1Mf0Ha2Ig4El5Dk7Cj', 'Riverside Medical Center', 'admin'),
-  ('Lena',    'Fischer',  'lena.fischer@pulseED.com',   '$2a$10$Xy1Qz3Lm8Pn2Kv4Jt7RuO5Ws9Yd6Xb3Nc1Mf0Ha2Ig4El5Dk7Cj', 'Northside ED',             'staff');
+  ('Sarah',   'Mitchell', 'sarah.mitchell@pulseED.com', '$2a$10$H9AWXL7f1dEO6DjHcdwLn.v4Tcex9v//fTyRLKcISIGd1QipDBKF6', 'City General Hospital',   'doctor'),
+  ('James',   'Carter',   'james.carter@pulseED.com',   '$2a$10$H9AWXL7f1dEO6DjHcdwLn.v4Tcex9v//fTyRLKcISIGd1QipDBKF6', 'City General Hospital',   'nurse'),
+  ('Priya',   'Nair',     'priya.nair@pulseED.com',     '$2a$10$H9AWXL7f1dEO6DjHcdwLn.v4Tcex9v//fTyRLKcISIGd1QipDBKF6', 'Riverside Medical Center', 'doctor'),
+  ('Omar',    'Hassan',   'omar.hassan@pulseED.com',    '$2a$10$H9AWXL7f1dEO6DjHcdwLn.v4Tcex9v//fTyRLKcISIGd1QipDBKF6', 'Riverside Medical Center', 'admin'),
+  ('Lena',    'Fischer',  'lena.fischer@pulseED.com',   '$2a$10$H9AWXL7f1dEO6DjHcdwLn.v4Tcex9v//fTyRLKcISIGd1QipDBKF6', 'Northside ED',             'staff');
 
 -- Patients
 INSERT INTO patients (id, name, age, gender, `condition`, doctor, bay, `level`) VALUES
