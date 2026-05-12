@@ -29,10 +29,10 @@ CREATE TABLE IF NOT EXISTS patients (
   name        VARCHAR(100)                        NOT NULL,
   age         TINYINT UNSIGNED                    NOT NULL,
   gender      ENUM('Male', 'Female', 'Other')     NOT NULL,
-  condition   VARCHAR(150)                        NOT NULL,
+  `condition` VARCHAR(150)                        NOT NULL,
   doctor      VARCHAR(100)                        NOT NULL,
   bay         VARCHAR(20)                         NOT NULL,
-  level       ENUM('Critical', 'Urgent', 'Stable') NOT NULL,
+  `level`     ENUM('Critical', 'Urgent', 'Stable') NOT NULL,
   created_at  TIMESTAMP                           NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id)
 );
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   id          INT                               NOT NULL AUTO_INCREMENT,
   title       VARCHAR(150)                      NOT NULL,
   message     TEXT                              NOT NULL,
-  level       ENUM('Critical', 'Warning', 'Info') NOT NULL,
+  `level`     ENUM('Critical', 'Warning', 'Info') NOT NULL,
   type        ENUM('emergency', 'system')       NOT NULL,
   created_at  TIMESTAMP                         NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id)
@@ -64,7 +64,7 @@ INSERT INTO users (first_name, last_name, email, password, hospital, role) VALUE
   ('Lena',    'Fischer',  'lena.fischer@pulseED.com',   '$2a$10$Xy1Qz3Lm8Pn2Kv4Jt7RuO5Ws9Yd6Xb3Nc1Mf0Ha2Ig4El5Dk7Cj', 'Northside ED',             'staff');
 
 -- Patients
-INSERT INTO patients (id, name, age, gender, condition, doctor, bay, level) VALUES
+INSERT INTO patients (id, name, age, gender, `condition`, doctor, bay, `level`) VALUES
   ('ED-2841', 'Thomas Greene',   45, 'Male',   'Acute chest pain, possible MI',        'Dr. Sarah Mitchell', 'Bay 1',  'Critical'),
   ('ED-2842', 'Aisha Patel',     32, 'Female', 'Severe allergic reaction',             'Dr. Priya Nair',     'Bay 2',  'Critical'),
   ('ED-2843', 'Robert Kim',      67, 'Male',   'Shortness of breath, suspected COPD',  'Dr. Sarah Mitchell', 'Bay 3',  'Urgent'),
@@ -73,7 +73,7 @@ INSERT INTO patients (id, name, age, gender, condition, doctor, bay, level) VALU
   ('ED-2846', 'Emma Larsson',    19, 'Female', 'Concussion after fall',                'Dr. Priya Nair',     'Bay 6',  'Stable');
 
 -- Notifications
-INSERT INTO notifications (title, message, level, type) VALUES
+INSERT INTO notifications (title, message, `level`, type) VALUES
   ('Code Blue — Bay 1',         'Patient ED-2841 is in cardiac arrest. All available staff report to Bay 1 immediately.', 'Critical', 'emergency'),
   ('Trauma Team Activation',    'Multiple vehicle accident incoming. Trauma team activate for Bay 2 and Bay 3.',          'Critical', 'emergency'),
   ('Blood Bank Alert',          'O-negative blood supply critically low. Contact blood bank for emergency resupply.',      'Warning',  'system'),
