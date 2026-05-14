@@ -1,4 +1,5 @@
 const { db } = require('../db/connection');
+const { generatePrefixedId } = require('../utils/entityResolvers');
 
 const getAllDoctors = async (req, res) => {
   try {
@@ -12,11 +13,12 @@ const getAllDoctors = async (req, res) => {
 const createDoctor = async (req, res) => {
   const { id, name, email, specialty, department, shift, status, phone, notes } = req.body;
   try {
+    const doctorId = id || await generatePrefixedId('doctors', 'DOC');
     await db.query(
       'INSERT INTO doctors (id, name, email, specialty, department, shift, status, phone, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, name, email, specialty, department, shift, status, phone || null, notes || null]
+      [doctorId, name, email, specialty, department, shift, status, phone || null, notes || null]
     );
-    res.status(201).json({ message: 'Doctor created successfully.', id });
+    res.status(201).json({ message: 'Doctor created successfully.', id: doctorId });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
