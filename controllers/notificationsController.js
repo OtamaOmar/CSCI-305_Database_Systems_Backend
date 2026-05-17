@@ -3,7 +3,11 @@ const { db } = require('../db/connection');
 const getAllNotifications = async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM notifications ORDER BY created_at DESC');
-    res.json(rows);
+    const normalized = rows.map((row) => ({
+      ...row,
+      time: row.created_at,
+    }));
+    res.json(normalized);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
