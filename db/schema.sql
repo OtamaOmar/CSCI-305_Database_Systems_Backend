@@ -410,6 +410,54 @@ CREATE TABLE IF NOT EXISTS hospital_files (
 );
 
 -- ─────────────────────────────────────────
+-- Table: doctor_patient_treatment
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS doctor_patient_treatment (
+  id             INT            NOT NULL AUTO_INCREMENT,
+  hospital_id    INT            NOT NULL,
+  doctor_id      VARCHAR(10)    NOT NULL,
+  patient_id     VARCHAR(10)    NOT NULL,
+  hours_per_week DECIMAL(5,2)   NOT NULL,
+  start_date     DATE           NOT NULL,
+  created_at     TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_treatment_hospital (hospital_id, created_at),
+  FOREIGN KEY (doctor_id) REFERENCES doctors(id),
+  FOREIGN KEY (patient_id) REFERENCES patients(id),
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+);
+
+-- ─────────────────────────────────────────
+-- Schema extensions (ADD COLUMN)
+-- ─────────────────────────────────────────
+
+ALTER TABLE patients
+  ADD COLUMN IF NOT EXISTS ssn             VARCHAR(20)   UNIQUE NULL,
+  ADD COLUMN IF NOT EXISTS address         VARCHAR(255)  NULL,
+  ADD COLUMN IF NOT EXISTS phone           VARCHAR(30)   NULL,
+  ADD COLUMN IF NOT EXISTS birthdate       DATE          NULL,
+  ADD COLUMN IF NOT EXISTS blood_pressure  VARCHAR(20)   NULL,
+  ADD COLUMN IF NOT EXISTS heart_rate      INT           NULL,
+  ADD COLUMN IF NOT EXISTS temperature     DECIMAL(4,1)  NULL,
+  ADD COLUMN IF NOT EXISTS medical_history TEXT          NULL,
+  ADD COLUMN IF NOT EXISTS admitted_date   DATE          NULL;
+
+ALTER TABLE doctors
+  ADD COLUMN IF NOT EXISTS ssn         VARCHAR(20)                        UNIQUE NULL,
+  ADD COLUMN IF NOT EXISTS sex         ENUM('Male', 'Female', 'Other')    NULL,
+  ADD COLUMN IF NOT EXISTS birthdate   DATE                               NULL,
+  ADD COLUMN IF NOT EXISTS degree      VARCHAR(100)                       NULL,
+  ADD COLUMN IF NOT EXISTS joined_date DATE                               NULL;
+
+ALTER TABLE departments
+  ADD COLUMN IF NOT EXISTS chairman_since DATE NULL;
+
+ALTER TABLE appointments
+  ADD COLUMN IF NOT EXISTS payment_status  ENUM('Unpaid', 'Paid', 'Refunded') NOT NULL DEFAULT 'Unpaid',
+  ADD COLUMN IF NOT EXISTS payment_amount  DECIMAL(10,2)                       NULL,
+  ADD COLUMN IF NOT EXISTS refund_date     DATE                                NULL;
+
+-- ─────────────────────────────────────────
 -- Seed data (safe defaults)
 -- ─────────────────────────────────────────
 INSERT INTO roles (role_name, description) VALUES
