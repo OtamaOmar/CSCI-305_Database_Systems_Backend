@@ -43,11 +43,13 @@ CREATE TABLE IF NOT EXISTS users (
   email        VARCHAR(100)  NOT NULL,
   password     VARCHAR(255)  NOT NULL,
   role         ENUM('owner', 'admin', 'doctor', 'nurse', 'pending') NOT NULL,
+  department_id INT          NULL,
   is_active    TINYINT(1)    NOT NULL DEFAULT 1,
   created_at   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   UNIQUE KEY uq_users_hospital_email (hospital_id, email),
   KEY idx_users_hospital_role (hospital_id, role),
+  KEY idx_users_hospital_department (hospital_id, department_id),
   FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
 );
 
@@ -140,6 +142,10 @@ CREATE TABLE IF NOT EXISTS doctors (
 ALTER TABLE departments
   ADD CONSTRAINT fk_departments_chairman
   FOREIGN KEY (chairman_id) REFERENCES doctors(id);
+
+ALTER TABLE users
+  ADD CONSTRAINT fk_users_department
+  FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL;
 
 -- ─────────────────────────────────────────
 -- Table: emergency_cases
@@ -431,11 +437,11 @@ INSERT INTO doctors (id, hospital_id, name, email, specialty, department_id, shi
   ('DOC-0002', 2, 'Dr. Priya Nair', 'priya.nair@pulseED.com', 'Emergency Medicine', 3, 'Evening', 'On duty', NULL, NULL);
 
 -- Users (passwords are bcrypt hashes of 'password123')
-INSERT INTO users (hospital_id, first_name, last_name, email, password, role) VALUES
-  (1, 'Sarah', 'Mitchell', 'sarah.mitchell@pulseED.com', '$2a$10$H9AWXL7f1dEO6DjHcdwLn.v4Tcex9v//fTyRLKcISIGd1QipDBKF6', 'doctor'),
-  (1, 'James', 'Carter',   'james.carter@pulseED.com',   '$2a$10$H9AWXL7f1dEO6DjHcdwLn.v4Tcex9v//fTyRLKcISIGd1QipDBKF6', 'nurse'),
-  (2, 'Priya', 'Nair',     'priya.nair@pulseED.com',     '$2a$10$H9AWXL7f1dEO6DjHcdwLn.v4Tcex9v//fTyRLKcISIGd1QipDBKF6', 'doctor'),
-  (2, 'Omar',  'Hassan',   'omar.hassan@pulseED.com',    '$2a$10$H9AWXL7f1dEO6DjHcdwLn.v4Tcex9v//fTyRLKcISIGd1QipDBKF6', 'admin');
+INSERT INTO users (hospital_id, first_name, last_name, email, password, role, department_id) VALUES
+  (1, 'Sarah', 'Mitchell', 'sarah.mitchell@pulseED.com', '$2a$10$H9AWXL7f1dEO6DjHcdwLn.v4Tcex9v//fTyRLKcISIGd1QipDBKF6', 'doctor', 1),
+  (1, 'James', 'Carter',   'james.carter@pulseED.com',   '$2a$10$H9AWXL7f1dEO6DjHcdwLn.v4Tcex9v//fTyRLKcISIGd1QipDBKF6', 'nurse', 1),
+  (2, 'Priya', 'Nair',     'priya.nair@pulseED.com',     '$2a$10$H9AWXL7f1dEO6DjHcdwLn.v4Tcex9v//fTyRLKcISIGd1QipDBKF6', 'doctor', 3),
+  (2, 'Omar',  'Hassan',   'omar.hassan@pulseED.com',    '$2a$10$H9AWXL7f1dEO6DjHcdwLn.v4Tcex9v//fTyRLKcISIGd1QipDBKF6', 'admin', 4);
 
 -- Patients
 INSERT INTO patients (id, hospital_id, name, age, gender, `condition`, doctor, bay, `level`) VALUES

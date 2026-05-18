@@ -6,6 +6,7 @@ const {
 	register,
 	login,
 	getPendingInvitation,
+	getInvitationDetails,
 	acceptInvitation,
 	rejectInvitation,
 } = require('../controllers/authController');
@@ -16,6 +17,9 @@ router.post('/register-owner', registerOwner);
 // Staff registration is invitation-based (token required).
 router.post('/register', register);
 router.post('/login', login);
+
+// Invitation lookup for pre-registration data.
+router.get('/invitation-details', getInvitationDetails);
 
 // Pending invitation workflow for invited users.
 router.get('/invitation', authenticate, getPendingInvitation);

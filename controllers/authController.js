@@ -10,6 +10,109 @@ function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function normalizeText(value) {
+  return String(value || '').trim();
+}
+
+function isTruthy(value) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value === 1;
+  if (typeof value === 'string') {
+    return ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase());
+  }
+  return false;
+}
+
+function makeDepartmentCode(name) {
+  const words = normalizeText(name).match(/[A-Za-z0-9]+/g) || [];
+  if (!words.length) return 'DEP';
+  const acronym = words.map(word => word[0]).join('').toUpperCase();
+  const base = acronym.length >= 2 ? acronym : words.join('').toUpperCase();
+  return base.slice(0, 20);
+}
+
+async function ensureUniqueDepartmentCode(connection, hospitalId, baseCode) {
+  const base = normalizeText(baseCode) || 'DEP';
+  let code = base.slice(0, 20);
+  let suffix = 1;
+
+  while (true) {
+    const [[existing]] = await connection.query(
+      'SELECT id FROM departments WHERE hospital_id = ? AND code = ? LIMIT 1',
+      [hospitalId, code]
+    );
+    if (!existing) return code;
+
+    suffix += 1;
+    const trimmedBase = base.slice(0, 16);
+    code = `${trimmedBase}-${suffix}`.slice(0, 20);
+  }
+}
+
+async function resolveDepartmentForRegistration(connection, hospitalId, payload) {
+  const departmentIdRaw = payload.department_id ?? payload.departmentId;
+  if (departmentIdRaw) {
+    const departmentId = Number(departmentIdRaw);
+    if (!Number.isInteger(departmentId)) {
+      throw new Error('Department selection is invalid.');
+    }
+
+    const [[row]] = await connection.query(
+      'SELECT id FROM departments WHERE id = ? AND hospital_id = ? LIMIT 1',
+      [departmentId, hospitalId]
+    );
+    if (!row) {
+      throw new Error('Selected department not found for your hospital.');
+    }
+    return departmentId;
+  }
+
+  const name = normalizeText(payload.department_name ?? payload.departmentName);
+  const codeInput = normalizeText(payload.department_code ?? payload.departmentCode);
+  const location = normalizeText(payload.department_location ?? payload.departmentLocation) || 'Main building';
+  const wantsCreate = isTruthy(payload.department_create ?? payload.departmentCreate);
+
+  if (!name && !codeInput) {
+    return null;
+  }
+
+  let lookupQuery = 'SELECT id FROM departments WHERE hospital_id = ? AND ';
+  const params = [hospitalId];
+  if (name && codeInput) {
+    lookupQuery += '(name = ? OR code = ?)';
+    params.push(name, codeInput);
+  } else if (name) {
+    lookupQuery += 'name = ?';
+    params.push(name);
+  } else {
+    lookupQuery += 'code = ?';
+    params.push(codeInput);
+  }
+
+  const [existingRows] = await connection.query(`${lookupQuery} LIMIT 1`, params);
+  if (existingRows.length) {
+    return existingRows[0].id;
+  }
+
+  if (!wantsCreate) {
+    return null;
+  }
+
+  if (!name) {
+    throw new Error('Department name is required to create a department.');
+  }
+
+  let code = codeInput || makeDepartmentCode(name);
+  code = await ensureUniqueDepartmentCode(connection, hospitalId, code);
+
+  const [result] = await connection.query(
+    'INSERT INTO departments (hospital_id, name, code, location, staff_count) VALUES (?, ?, ?, ?, ?)',
+    [hospitalId, name, code, location, 0]
+  );
+
+  return result.insertId;
+}
+
 function sha256Hex(value) {
   const crypto = require('crypto');
   return crypto.createHash('sha256').update(String(value)).digest('hex');
@@ -25,9 +128,12 @@ async function getUserForResponse(userId) {
         u.email,
         u.role,
         u.hospital_id,
+        u.department_id,
+        dep.name AS department,
         h.name AS hospital
       FROM users u
       INNER JOIN hospitals h ON h.id = u.hospital_id
+      LEFT JOIN departments dep ON dep.id = u.department_id AND dep.hospital_id = u.hospital_id
       WHERE u.id = ?
       LIMIT 1
     `,
@@ -171,14 +277,31 @@ const register = async (req, res) => {
       return res.status(409).json({ error: 'User already registered. Please sign in.' });
     }
 
-    const hashed = await bcrypt.hash(password, 10);
-
     const connection = await db.getConnection();
     try {
       await connection.beginTransaction();
 
+      let departmentId = null;
+      try {
+        departmentId = await resolveDepartmentForRegistration(
+          connection,
+          invitation.hospital_id,
+          req.body
+        );
+      } catch (err) {
+        await connection.rollback();
+        return res.status(400).json({ error: err.message });
+      }
+
+      if (!departmentId && ['admin', 'doctor', 'nurse'].includes(invitation.role)) {
+        await connection.rollback();
+        return res.status(400).json({ error: 'Department is required for this role.' });
+      }
+
+      const hashed = await bcrypt.hash(password, 10);
+
       const [userResult] = await connection.query(
-        'INSERT INTO users (hospital_id, first_name, last_name, email, password, role) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO users (hospital_id, first_name, last_name, email, password, role, department_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [
           invitation.hospital_id,
           first_name,
@@ -186,6 +309,7 @@ const register = async (req, res) => {
           normalizedEmail,
           hashed,
           'pending',
+          departmentId || null,
         ]
       );
 
@@ -240,6 +364,62 @@ const getPendingInvitation = async (req, res) => {
     );
 
     res.json(rows[0] || null);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+const getInvitationDetails = async (req, res) => {
+  try {
+    const normalizedEmail = normalizeEmail(req.query.email);
+    if (!normalizedEmail) {
+      return res.status(400).json({ error: 'Invitation email is required.' });
+    }
+
+    const [rows] = await db.query(
+      `
+        SELECT
+          i.hospital_id,
+          i.email,
+          i.role,
+          h.name AS hospital_name
+        FROM invitations i
+        INNER JOIN hospitals h ON h.id = i.hospital_id
+        WHERE i.email = ?
+          AND i.revoked_at IS NULL
+          AND i.used_at IS NULL
+          AND i.rejected_at IS NULL
+          AND i.expires_at > NOW()
+        ORDER BY i.created_at DESC
+        LIMIT 1
+      `,
+      [normalizedEmail]
+    );
+
+    const invitation = rows[0];
+    if (!invitation) {
+      return res.status(404).json({ error: 'Invalid or expired invitation email.' });
+    }
+
+    const [departments] = await db.query(
+      `
+        SELECT id, name, code, location
+        FROM departments
+        WHERE hospital_id = ?
+        ORDER BY name ASC
+      `,
+      [invitation.hospital_id]
+    );
+
+    res.json({
+      invitation: {
+        email: invitation.email,
+        role: invitation.role,
+        hospital_id: invitation.hospital_id,
+        hospital_name: invitation.hospital_name,
+      },
+      departments,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -351,10 +531,12 @@ const login = async (req, res) => {
     const [rows] = await db.query(
       `
         SELECT
-          u.*,
+          u.*, 
+          dep.name AS department_name,
           h.name AS hospital_name
         FROM users u
         INNER JOIN hospitals h ON h.id = u.hospital_id
+        LEFT JOIN departments dep ON dep.id = u.department_id AND dep.hospital_id = u.hospital_id
         WHERE u.email = ?
         LIMIT 1
       `,
@@ -367,9 +549,22 @@ const login = async (req, res) => {
 
     if (!rows[0].is_active) return res.status(401).json({ error: 'Account disabled.' });
 
-    const { id, first_name, last_name, role, hospital_id, hospital_name } = rows[0];
+    const { id, first_name, last_name, role, hospital_id, hospital_name, department_id, department_name } = rows[0];
     const token = signToken(id);
-    res.json({ token, user: { id, first_name, last_name, email: normalizedEmail, role, hospital_id, hospital: hospital_name } });
+    res.json({
+      token,
+      user: {
+        id,
+        first_name,
+        last_name,
+        email: normalizedEmail,
+        role,
+        hospital_id,
+        hospital: hospital_name,
+        department_id,
+        department: department_name,
+      },
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -380,6 +575,7 @@ module.exports = {
   register,
   login,
   getPendingInvitation,
+  getInvitationDetails,
   acceptInvitation,
   rejectInvitation,
 };

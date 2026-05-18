@@ -6,16 +6,19 @@ exports.getAllUsers = async (req, res) => {
     const [rows] = await db.query(
       `
         SELECT
-          id,
-          hospital_id,
-          first_name,
-          last_name,
-          email,
-          role,
-          is_active,
-          DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%s') AS created_at
-        FROM users
-        WHERE hospital_id = ?
+          u.id,
+          u.hospital_id,
+          u.first_name,
+          u.last_name,
+          u.email,
+          u.role,
+          u.department_id,
+          dep.name AS department,
+          u.is_active,
+          DATE_FORMAT(u.created_at, '%Y-%m-%dT%H:%i:%s') AS created_at
+        FROM users u
+        LEFT JOIN departments dep ON dep.id = u.department_id AND dep.hospital_id = u.hospital_id
+        WHERE u.hospital_id = ?
         ORDER BY created_at DESC, id DESC
       `,
       [hospitalId]
@@ -32,16 +35,19 @@ exports.getUserById = async (req, res) => {
     const [rows] = await db.query(
       `
         SELECT
-          id,
-          hospital_id,
-          first_name,
-          last_name,
-          email,
-          role,
-          is_active,
-          DATE_FORMAT(created_at, '%Y-%m-%dT%H:%i:%s') AS created_at
-        FROM users
-        WHERE id = ? AND hospital_id = ?
+          u.id,
+          u.hospital_id,
+          u.first_name,
+          u.last_name,
+          u.email,
+          u.role,
+          u.department_id,
+          dep.name AS department,
+          u.is_active,
+          DATE_FORMAT(u.created_at, '%Y-%m-%dT%H:%i:%s') AS created_at
+        FROM users u
+        LEFT JOIN departments dep ON dep.id = u.department_id AND dep.hospital_id = u.hospital_id
+        WHERE u.id = ? AND u.hospital_id = ?
         LIMIT 1
       `,
       [req.params.id, hospitalId]
