@@ -1,5 +1,6 @@
 const { db } = require('../db/connection');
 const { pickFirstNonEmpty, resolvePatient } = require('../utils/entityResolvers');
+const { emitNotification } = require('../utils/notifications');
 
 const fileTypeMap = {
   'X-Ray': 'X-Ray',
@@ -26,7 +27,7 @@ async function fetchMedicalFileRows(whereClause = '', params = []) {
         mf.file_url,
         DATE_FORMAT(mf.uploaded_date, '%Y-%m-%d') AS uploaded_date
       FROM medical_files mf
-      INNER JOIN patients p ON p.id = mf.patient_id
+      INNER JOIN patients p ON p.id = mf.patient_id AND p.hospital_id = mf.hospital_id
       ${whereClause}
       ORDER BY mf.uploaded_date DESC, mf.id DESC
     `,
@@ -43,7 +44,8 @@ async function fetchMedicalFileRows(whereClause = '', params = []) {
 
 exports.getAllMedicalFiles = async (req, res) => {
   try {
-    const rows = await fetchMedicalFileRows();
+    const hospitalId = req.tenantId;
+    const rows = await fetchMedicalFileRows('WHERE mf.hospital_id = ?', [hospitalId]);
     res.json(rows || []);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -52,7 +54,8 @@ exports.getAllMedicalFiles = async (req, res) => {
 
 exports.getMedicalFileById = async (req, res) => {
   try {
-    const rows = await fetchMedicalFileRows('WHERE mf.id = ?', [req.params.id]);
+    const hospitalId = req.tenantId;
+    const rows = await fetchMedicalFileRows('WHERE mf.id = ? AND mf.hospital_id = ?', [req.params.id, hospitalId]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Medical file not found' });
     }
@@ -65,7 +68,8 @@ exports.getMedicalFileById = async (req, res) => {
 
 exports.createMedicalFile = async (req, res) => {
   try {
-    const patient = await resolvePatient(req.body);
+    const hospitalId = req.tenantId;
+    const patient = await resolvePatient(req.body, hospitalId);
     if (!patient) {
       return res.status(400).json({ error: 'Select an existing patient before uploading a file.' });
     }
@@ -76,11 +80,22 @@ exports.createMedicalFile = async (req, res) => {
     }
 
     const [result] = await db.query(
-      'INSERT INTO medical_files (patient_id, file_type, file_name, file_url, uploaded_date) VALUES (?, ?, ?, ?, NOW())',
-      [patient.id, normalizeFileType(req.body.file_type || req.body.type), fileName, fileName]
+      'INSERT INTO medical_files (hospital_id, patient_id, file_type, file_name, file_url, uploaded_date) VALUES (?, ?, ?, ?, ?, NOW())',
+      [hospitalId, patient.id, normalizeFileType(req.body.file_type || req.body.type), fileName, fileName]
     );
 
-    const rows = await fetchMedicalFileRows('WHERE mf.id = ?', [result.insertId]);
+    await emitNotification({
+      hospitalId,
+      actorUserId: req.user?.id || null,
+      title: 'Medical file uploaded',
+      message: `${fileName} uploaded for ${patient.name}.`,
+      level: 'Info',
+      type: 'audit',
+      entity_type: 'medical_file',
+      entity_id: String(result.insertId),
+    });
+
+    const rows = await fetchMedicalFileRows('WHERE mf.id = ? AND mf.hospital_id = ?', [result.insertId, hospitalId]);
     res.status(201).json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -89,7 +104,11 @@ exports.createMedicalFile = async (req, res) => {
 
 exports.updateMedicalFile = async (req, res) => {
   try {
-    const [existingRows] = await db.query('SELECT * FROM medical_files WHERE id = ? LIMIT 1', [req.params.id]);
+    const hospitalId = req.tenantId;
+    const [existingRows] = await db.query(
+      'SELECT * FROM medical_files WHERE id = ? AND hospital_id = ? LIMIT 1',
+      [req.params.id, hospitalId]
+    );
     const existingFile = existingRows[0];
 
     if (!existingFile) {
@@ -100,7 +119,7 @@ exports.updateMedicalFile = async (req, res) => {
       pickFirstNonEmpty(req.body.patient_id, req.body.patient, req.body.patient_name)
     );
     const patient = shouldResolvePatient
-      ? await resolvePatient(req.body)
+      ? await resolvePatient(req.body, hospitalId)
       : { id: existingFile.patient_id };
     if (!patient) {
       return res.status(400).json({ error: 'Select an existing patient before updating the file.' });
@@ -112,11 +131,11 @@ exports.updateMedicalFile = async (req, res) => {
       : existingFile.file_type;
 
     await db.query(
-      'UPDATE medical_files SET patient_id = ?, file_type = ?, file_name = ?, file_url = ? WHERE id = ?',
-      [patient.id, fileType, fileName, fileName, req.params.id]
+      'UPDATE medical_files SET patient_id = ?, file_type = ?, file_name = ?, file_url = ? WHERE id = ? AND hospital_id = ?',
+      [patient.id, fileType, fileName, fileName, req.params.id, hospitalId]
     );
 
-    const rows = await fetchMedicalFileRows('WHERE mf.id = ?', [req.params.id]);
+    const rows = await fetchMedicalFileRows('WHERE mf.id = ? AND mf.hospital_id = ?', [req.params.id, hospitalId]);
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -125,7 +144,8 @@ exports.updateMedicalFile = async (req, res) => {
 
 exports.deleteMedicalFile = async (req, res) => {
   try {
-    const [result] = await db.query('DELETE FROM medical_files WHERE id = ?', [req.params.id]);
+    const hospitalId = req.tenantId;
+    const [result] = await db.query('DELETE FROM medical_files WHERE id = ? AND hospital_id = ?', [req.params.id, hospitalId]);
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Medical file not found' });
     }

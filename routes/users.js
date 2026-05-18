@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const authenticate = require('../middleware/authenticate');
+const { requirePermission } = require('../middleware/authorize');
 const {
   getAllUsers,
   getUserById,
@@ -8,10 +10,12 @@ const {
   deleteUser,
 } = require('../controllers/usersController');
 
-router.get('/', getAllUsers);
-router.get('/:id', getUserById);
-router.post('/', createUser);
-router.put('/:id', updateUser);
-router.delete('/:id', deleteUser);
+router.use(authenticate);
+
+router.get('/', requirePermission('users:manage'), getAllUsers);
+router.get('/:id', requirePermission('users:manage'), getUserById);
+router.post('/', requirePermission('users:manage'), createUser);
+router.put('/:id', requirePermission('users:manage'), updateUser);
+router.delete('/:id', requirePermission('users:manage'), deleteUser);
 
 module.exports = router;

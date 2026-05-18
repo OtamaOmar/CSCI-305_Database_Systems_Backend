@@ -2,7 +2,8 @@ const { db } = require('../db/connection');
 
 exports.getAllTriageCases = async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM triage');
+    const hospitalId = req.tenantId;
+    const [rows] = await db.query('SELECT * FROM triage WHERE hospital_id = ? ORDER BY created_at DESC', [hospitalId]);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -11,7 +12,8 @@ exports.getAllTriageCases = async (req, res) => {
 
 exports.getTriageCaseById = async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM triage WHERE id = ?', [req.params.id]);
+    const hospitalId = req.tenantId;
+    const [rows] = await db.query('SELECT * FROM triage WHERE id = ? AND hospital_id = ?', [req.params.id, hospitalId]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Triage case not found' });
     }
@@ -23,10 +25,11 @@ exports.getTriageCaseById = async (req, res) => {
 
 exports.createTriageCase = async (req, res) => {
   try {
+    const hospitalId = req.tenantId;
     const { patient_id, priority_level, symptoms, assessment, assigned_doctor_id } = req.body;
     const [result] = await db.query(
-      'INSERT INTO triage (patient_id, priority_level, symptoms, assessment, assigned_doctor_id) VALUES (?, ?, ?, ?, ?)',
-      [patient_id, priority_level, symptoms, assessment, assigned_doctor_id]
+      'INSERT INTO triage (hospital_id, patient_id, priority_level, symptoms, assessment, assigned_doctor_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [hospitalId, patient_id, priority_level, symptoms, assessment, assigned_doctor_id]
     );
     res.status(201).json({ id: result.insertId, message: 'Triage case created successfully' });
   } catch (err) {
@@ -36,10 +39,11 @@ exports.createTriageCase = async (req, res) => {
 
 exports.updateTriageCase = async (req, res) => {
   try {
+    const hospitalId = req.tenantId;
     const { patient_id, priority_level, symptoms, assessment, assigned_doctor_id } = req.body;
     await db.query(
-      'UPDATE triage SET patient_id = ?, priority_level = ?, symptoms = ?, assessment = ?, assigned_doctor_id = ? WHERE id = ?',
-      [patient_id, priority_level, symptoms, assessment, assigned_doctor_id, req.params.id]
+      'UPDATE triage SET patient_id = ?, priority_level = ?, symptoms = ?, assessment = ?, assigned_doctor_id = ? WHERE id = ? AND hospital_id = ?',
+      [patient_id, priority_level, symptoms, assessment, assigned_doctor_id, req.params.id, hospitalId]
     );
     res.json({ message: 'Triage case updated successfully' });
   } catch (err) {
@@ -49,7 +53,8 @@ exports.updateTriageCase = async (req, res) => {
 
 exports.deleteTriageCase = async (req, res) => {
   try {
-    await db.query('DELETE FROM triage WHERE id = ?', [req.params.id]);
+    const hospitalId = req.tenantId;
+    await db.query('DELETE FROM triage WHERE id = ? AND hospital_id = ?', [req.params.id, hospitalId]);
     res.json({ message: 'Triage case deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -16,31 +16,61 @@ function pickFirstNonEmpty(...values) {
   return '';
 }
 
-async function resolvePatient(payload = {}) {
+async function resolvePatient(payload = {}, hospitalId) {
   const lookupValue = pickFirstNonEmpty(payload.patient_id, payload.patient, payload.patient_name);
 
   if (!lookupValue) {
     return null;
   }
 
+  if (!hospitalId) {
+    throw new Error('resolvePatient requires hospitalId');
+  }
+
   const [rows] = await db.query(
-    'SELECT id, name FROM patients WHERE id = ? OR name = ? LIMIT 1',
-    [lookupValue, lookupValue]
+    'SELECT id, name FROM patients WHERE hospital_id = ? AND (id = ? OR name = ?) LIMIT 1',
+    [hospitalId, lookupValue, lookupValue]
   );
 
   return rows[0] || null;
 }
 
-async function resolveDoctor(payload = {}) {
+async function resolveDoctor(payload = {}, hospitalId) {
   const lookupValue = pickFirstNonEmpty(payload.doctor_id, payload.doctor, payload.doctor_name);
 
   if (!lookupValue) {
     return null;
   }
 
+  if (!hospitalId) {
+    throw new Error('resolveDoctor requires hospitalId');
+  }
+
   const [rows] = await db.query(
-    'SELECT id, name, department FROM doctors WHERE id = ? OR name = ? LIMIT 1',
-    [lookupValue, lookupValue]
+    `
+      SELECT d.id, d.name, dep.name AS department
+      FROM doctors d
+      LEFT JOIN departments dep ON dep.id = d.department_id
+      WHERE d.hospital_id = ? AND (d.id = ? OR d.name = ?)
+      LIMIT 1
+    `,
+    [hospitalId, lookupValue, lookupValue]
+  );
+
+  return rows[0] || null;
+}
+
+async function resolveDepartment(payload = {}, hospitalId) {
+  if (!hospitalId) {
+    throw new Error('resolveDepartment requires hospitalId');
+  }
+
+  const lookupValue = pickFirstNonEmpty(payload.department_id, payload.department, payload.department_name);
+  if (!lookupValue) return null;
+
+  const [rows] = await db.query(
+    'SELECT id, name, code FROM departments WHERE hospital_id = ? AND (id = ? OR name = ? OR code = ?) LIMIT 1',
+    [hospitalId, lookupValue, lookupValue, lookupValue]
   );
 
   return rows[0] || null;
@@ -60,12 +90,16 @@ function normalizeRoomType(value) {
   return roomTypeMap[normalized] || '';
 }
 
-async function resolveRoom(payload = {}) {
+async function resolveRoom(payload = {}, hospitalId) {
+  if (!hospitalId) {
+    throw new Error('resolveRoom requires hospitalId');
+  }
+
   const roomId = pickFirstNonEmpty(payload.room_id);
   if (roomId) {
     const [rows] = await db.query(
-      'SELECT id, room_number, room_type, status FROM rooms WHERE id = ? LIMIT 1',
-      [roomId]
+      'SELECT id, room_number, room_type, status FROM rooms WHERE hospital_id = ? AND id = ? LIMIT 1',
+      [hospitalId, roomId]
     );
     return rows[0] || null;
   }
@@ -73,8 +107,8 @@ async function resolveRoom(payload = {}) {
   const roomNumber = pickFirstNonEmpty(payload.room_number, payload.room);
   if (roomNumber) {
     const [rows] = await db.query(
-      'SELECT id, room_number, room_type, status FROM rooms WHERE room_number = ? LIMIT 1',
-      [roomNumber]
+      'SELECT id, room_number, room_type, status FROM rooms WHERE hospital_id = ? AND room_number = ? LIMIT 1',
+      [hospitalId, roomNumber]
     );
     return rows[0] || null;
   }
@@ -85,20 +119,27 @@ async function resolveRoom(payload = {}) {
   }
 
   const [rows] = await db.query(
-    "SELECT id, room_number, room_type, status FROM rooms WHERE room_type = ? AND status = 'Available' ORDER BY room_number ASC LIMIT 1",
-    [roomType]
+    "SELECT id, room_number, room_type, status FROM rooms WHERE hospital_id = ? AND room_type = ? AND status = 'Available' ORDER BY room_number ASC LIMIT 1",
+    [hospitalId, roomType]
   );
 
   return rows[0] || null;
 }
 
-async function generatePrefixedId(tableName, prefix) {
+async function generatePrefixedId(tableName, prefix, hospitalId) {
   const allowedTables = new Set(['doctors', 'patients', 'emergency_cases']);
   if (!allowedTables.has(tableName)) {
     throw new Error(`ID generation is not allowed for table: ${tableName}`);
   }
 
-  const [rows] = await db.query(`SELECT id FROM ${tableName} WHERE id LIKE ?`, [`${prefix}-%`]);
+  if (!hospitalId) {
+    throw new Error('generatePrefixedId requires hospitalId');
+  }
+
+  const [rows] = await db.query(
+    `SELECT id FROM ${tableName} WHERE hospital_id = ? AND id LIKE ?`,
+    [hospitalId, `${prefix}-%`]
+  );
 
   let maxNumber = 0;
   for (const row of rows) {
@@ -118,6 +159,7 @@ module.exports = {
   generatePrefixedId,
   normalizeRoomType,
   pickFirstNonEmpty,
+  resolveDepartment,
   resolveDoctor,
   resolvePatient,
   resolveRoom,

@@ -3,7 +3,11 @@ const { generatePrefixedId } = require('../utils/entityResolvers');
 
 const getAllCases = async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM emergency_cases ORDER BY created_at DESC');
+    const hospitalId = req.tenantId;
+    const [rows] = await db.query(
+      'SELECT * FROM emergency_cases WHERE hospital_id = ? ORDER BY created_at DESC',
+      [hospitalId]
+    );
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -29,11 +33,13 @@ const createCase = async (req, res) => {
     : null;
 
   try {
-    const caseId = id || await generatePrefixedId('emergency_cases', 'CAS');
+    const hospitalId = req.tenantId;
+    const caseId = id || await generatePrefixedId('emergency_cases', 'CAS', hospitalId);
     await db.query(
-      'INSERT INTO emergency_cases (id, name, age, gender, complaint, room, doctor, severity, status, arrival_time, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO emergency_cases (id, hospital_id, name, age, gender, complaint, room, doctor, severity, status, arrival_time, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         caseId,
+        hospitalId,
         name,
         age,
         gender,
@@ -71,8 +77,9 @@ const updateCase = async (req, res) => {
     : null;
 
   try {
+    const hospitalId = req.tenantId;
     const [result] = await db.query(
-      'UPDATE emergency_cases SET name = ?, age = ?, gender = ?, complaint = ?, room = ?, doctor = ?, severity = ?, status = ?, arrival_time = ?, notes = ? WHERE id = ?',
+      'UPDATE emergency_cases SET name = ?, age = ?, gender = ?, complaint = ?, room = ?, doctor = ?, severity = ?, status = ?, arrival_time = ?, notes = ? WHERE id = ? AND hospital_id = ?',
       [
         name,
         age,
@@ -85,6 +92,7 @@ const updateCase = async (req, res) => {
         normalizedArrival,
         notes || null,
         id,
+        hospitalId,
       ]
     );
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Case not found.' });
@@ -97,7 +105,8 @@ const updateCase = async (req, res) => {
 const deleteCase = async (req, res) => {
   const { id } = req.params;
   try {
-    const [result] = await db.query('DELETE FROM emergency_cases WHERE id = ?', [id]);
+    const hospitalId = req.tenantId;
+    const [result] = await db.query('DELETE FROM emergency_cases WHERE id = ? AND hospital_id = ?', [id, hospitalId]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Case not found.' });
     res.json({ message: 'Case deleted successfully.' });
   } catch (err) {

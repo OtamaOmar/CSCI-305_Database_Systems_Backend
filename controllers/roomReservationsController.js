@@ -17,10 +17,12 @@ function normalizeReservationStatus(value) {
 
 exports.getAllReservations = async (req, res) => {
   try {
+    const hospitalId = req.tenantId;
     const [rows] = await db.query(
       `
         SELECT
           rr.id,
+          rr.hospital_id,
           rr.room_id,
           r.room_number,
           r.room_type,
@@ -34,10 +36,12 @@ exports.getAllReservations = async (req, res) => {
           rr.status,
           DATE_FORMAT(rr.created_at, '%Y-%m-%dT%H:%i:%s') AS created_at
         FROM room_reservations rr
-        INNER JOIN rooms r ON r.id = rr.room_id
-        INNER JOIN patients p ON p.id = rr.patient_id
+        INNER JOIN rooms r ON r.id = rr.room_id AND r.hospital_id = rr.hospital_id
+        INNER JOIN patients p ON p.id = rr.patient_id AND p.hospital_id = rr.hospital_id
+        WHERE rr.hospital_id = ?
         ORDER BY rr.created_at DESC, rr.id DESC
-      `
+      `,
+      [hospitalId]
     );
     res.json(rows);
   } catch (err) {
@@ -47,7 +51,8 @@ exports.getAllReservations = async (req, res) => {
 
 exports.getReservationById = async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM room_reservations WHERE id = ?', [req.params.id]);
+    const hospitalId = req.tenantId;
+    const [rows] = await db.query('SELECT * FROM room_reservations WHERE id = ? AND hospital_id = ?', [req.params.id, hospitalId]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Reservation not found' });
     }
@@ -61,12 +66,13 @@ exports.createReservation = async (req, res) => {
   const connection = await db.getConnection();
 
   try {
-    const patient = await resolvePatient(req.body);
+    const hospitalId = req.tenantId;
+    const patient = await resolvePatient(req.body, hospitalId);
     if (!patient) {
       return res.status(400).json({ error: 'Select an existing patient before reserving a room.' });
     }
 
-    const room = await resolveRoom(req.body);
+    const room = await resolveRoom(req.body, hospitalId);
     if (!room) {
       return res.status(400).json({ error: 'No matching available room was found for this reservation.' });
     }
@@ -86,16 +92,17 @@ exports.createReservation = async (req, res) => {
     await connection.beginTransaction();
 
     const [result] = await connection.query(
-      'INSERT INTO room_reservations (room_id, patient_id, check_in_date, check_out_date, status) VALUES (?, ?, ?, ?, ?)',
-      [room.id, patient.id, checkInDate, checkOutDate, status]
+      'INSERT INTO room_reservations (hospital_id, room_id, patient_id, check_in_date, check_out_date, status) VALUES (?, ?, ?, ?, ?, ?)',
+      [hospitalId, room.id, patient.id, checkInDate, checkOutDate, status]
     );
 
-    await connection.query('UPDATE rooms SET status = ? WHERE id = ?', ['Occupied', room.id]);
+    await connection.query('UPDATE rooms SET status = ? WHERE id = ? AND hospital_id = ?', ['Occupied', room.id, hospitalId]);
 
     await connection.commit();
 
     res.status(201).json({
       id: result.insertId,
+      hospital_id: hospitalId,
       room_id: room.id,
       room_number: room.room_number,
       room_type: room.room_type,
@@ -116,10 +123,11 @@ exports.createReservation = async (req, res) => {
 
 exports.updateReservation = async (req, res) => {
   try {
+    const hospitalId = req.tenantId;
     const { room_id, patient_id, check_in_date, check_out_date, status } = req.body;
     await db.query(
-      'UPDATE room_reservations SET room_id = ?, patient_id = ?, check_in_date = ?, check_out_date = ?, status = ? WHERE id = ?',
-      [room_id, patient_id, check_in_date, check_out_date, status, req.params.id]
+      'UPDATE room_reservations SET room_id = ?, patient_id = ?, check_in_date = ?, check_out_date = ?, status = ? WHERE id = ? AND hospital_id = ?',
+      [room_id, patient_id, check_in_date, check_out_date, status, req.params.id, hospitalId]
     );
     res.json({ message: 'Reservation updated successfully' });
   } catch (err) {
@@ -129,7 +137,8 @@ exports.updateReservation = async (req, res) => {
 
 exports.deleteReservation = async (req, res) => {
   try {
-    await db.query('DELETE FROM room_reservations WHERE id = ?', [req.params.id]);
+    const hospitalId = req.tenantId;
+    await db.query('DELETE FROM room_reservations WHERE id = ? AND hospital_id = ?', [req.params.id, hospitalId]);
     res.json({ message: 'Reservation deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });

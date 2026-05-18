@@ -2,16 +2,17 @@ const { db } = require('../db/connection');
 
 exports.getDashboardStats = async (req, res) => {
   try {
-    const [patients] = await db.query('SELECT COUNT(*) as count FROM patients');
-    const [doctors] = await db.query('SELECT COUNT(*) as count FROM doctors');
-    const [appointments] = await db.query('SELECT COUNT(*) as count FROM appointments');
-    const [cases] = await db.query('SELECT COUNT(*) as count FROM cases');
+    const hospitalId = req.tenantId;
+    const [[patients]] = await db.query('SELECT COUNT(*) as count FROM patients WHERE hospital_id = ?', [hospitalId]);
+    const [[doctors]] = await db.query('SELECT COUNT(*) as count FROM doctors WHERE hospital_id = ?', [hospitalId]);
+    const [[appointments]] = await db.query('SELECT COUNT(*) as count FROM appointments WHERE hospital_id = ?', [hospitalId]);
+    const [[cases]] = await db.query('SELECT COUNT(*) as count FROM emergency_cases WHERE hospital_id = ?', [hospitalId]);
 
     res.json({
-      totalPatients: patients[0].count,
-      totalDoctors: doctors[0].count,
-      totalAppointments: appointments[0].count,
-      totalCases: cases[0].count,
+      totalPatients: patients.count,
+      totalDoctors: doctors.count,
+      totalAppointments: appointments.count,
+      totalCases: cases.count,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

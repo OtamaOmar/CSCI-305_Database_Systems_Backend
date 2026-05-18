@@ -2,7 +2,8 @@ const { db } = require('../db/connection');
 
 exports.getAllLocations = async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM locations');
+    const hospitalId = req.tenantId;
+    const [rows] = await db.query('SELECT * FROM locations WHERE hospital_id = ? ORDER BY created_at DESC', [hospitalId]);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -11,7 +12,8 @@ exports.getAllLocations = async (req, res) => {
 
 exports.getLocationById = async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM locations WHERE id = ?', [req.params.id]);
+    const hospitalId = req.tenantId;
+    const [rows] = await db.query('SELECT * FROM locations WHERE id = ? AND hospital_id = ?', [req.params.id, hospitalId]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Location not found' });
     }
@@ -23,10 +25,11 @@ exports.getLocationById = async (req, res) => {
 
 exports.createLocation = async (req, res) => {
   try {
+    const hospitalId = req.tenantId;
     const { name, type, latitude, longitude, address } = req.body;
     const [result] = await db.query(
-      'INSERT INTO locations (name, type, latitude, longitude, address) VALUES (?, ?, ?, ?, ?)',
-      [name, type, latitude, longitude, address]
+      'INSERT INTO locations (hospital_id, name, type, latitude, longitude, address) VALUES (?, ?, ?, ?, ?, ?)',
+      [hospitalId, name, type, latitude, longitude, address]
     );
     res.status(201).json({ id: result.insertId, message: 'Location created successfully' });
   } catch (err) {
@@ -36,10 +39,11 @@ exports.createLocation = async (req, res) => {
 
 exports.updateLocation = async (req, res) => {
   try {
+    const hospitalId = req.tenantId;
     const { name, type, latitude, longitude, address } = req.body;
     await db.query(
-      'UPDATE locations SET name = ?, type = ?, latitude = ?, longitude = ?, address = ? WHERE id = ?',
-      [name, type, latitude, longitude, address, req.params.id]
+      'UPDATE locations SET name = ?, type = ?, latitude = ?, longitude = ?, address = ? WHERE id = ? AND hospital_id = ?',
+      [name, type, latitude, longitude, address, req.params.id, hospitalId]
     );
     res.json({ message: 'Location updated successfully' });
   } catch (err) {
@@ -49,7 +53,8 @@ exports.updateLocation = async (req, res) => {
 
 exports.deleteLocation = async (req, res) => {
   try {
-    await db.query('DELETE FROM locations WHERE id = ?', [req.params.id]);
+    const hospitalId = req.tenantId;
+    await db.query('DELETE FROM locations WHERE id = ? AND hospital_id = ?', [req.params.id, hospitalId]);
     res.json({ message: 'Location deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });

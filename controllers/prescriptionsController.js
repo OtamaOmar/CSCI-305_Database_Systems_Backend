@@ -1,11 +1,23 @@
 const { db } = require('../db/connection');
 const { pickFirstNonEmpty, resolveDoctor, resolvePatient } = require('../utils/entityResolvers');
+const { emitNotification } = require('../utils/notifications');
 
-async function fetchPrescriptionRows(whereClause = '', params = []) {
+async function fetchPrescriptionRows(hospitalId, extraWhere = '', extraParams = []) {
+  const whereParts = ['pr.hospital_id = ?'];
+  const params = [hospitalId];
+
+  if (extraWhere) {
+    whereParts.push(extraWhere);
+    params.push(...extraParams);
+  }
+
+  const whereClause = `WHERE ${whereParts.join(' AND ')}`;
+
   const [rows] = await db.query(
     `
       SELECT
         pr.id,
+        pr.hospital_id,
         pr.patient_id,
         p.name AS patient_name,
         pr.doctor_id,
@@ -21,8 +33,8 @@ async function fetchPrescriptionRows(whereClause = '', params = []) {
         pr.notes,
         DATE_FORMAT(pr.created_at, '%Y-%m-%dT%H:%i:%s') AS created_at
       FROM prescriptions pr
-      INNER JOIN patients p ON p.id = pr.patient_id
-      INNER JOIN doctors d ON d.id = pr.doctor_id
+      INNER JOIN patients p ON p.id = pr.patient_id AND p.hospital_id = pr.hospital_id
+      INNER JOIN doctors d ON d.id = pr.doctor_id AND d.hospital_id = pr.hospital_id
       ${whereClause}
       ORDER BY pr.created_at DESC, pr.id DESC
     `,
@@ -38,7 +50,7 @@ async function fetchPrescriptionRows(whereClause = '', params = []) {
 
 exports.getAllPrescriptions = async (req, res) => {
   try {
-    const rows = await fetchPrescriptionRows();
+    const rows = await fetchPrescriptionRows(req.tenantId);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -47,7 +59,7 @@ exports.getAllPrescriptions = async (req, res) => {
 
 exports.getPrescriptionById = async (req, res) => {
   try {
-    const rows = await fetchPrescriptionRows('WHERE pr.id = ?', [req.params.id]);
+    const rows = await fetchPrescriptionRows(req.tenantId, 'pr.id = ?', [req.params.id]);
     if (rows.length === 0) {
       return res.status(404).json({ error: 'Prescription not found' });
     }
@@ -60,12 +72,13 @@ exports.getPrescriptionById = async (req, res) => {
 
 exports.createPrescription = async (req, res) => {
   try {
-    const patient = await resolvePatient(req.body);
+    const hospitalId = req.tenantId;
+    const patient = await resolvePatient(req.body, hospitalId);
     if (!patient) {
       return res.status(400).json({ error: 'Select an existing patient before saving the prescription.' });
     }
 
-    const doctor = await resolveDoctor(req.body);
+    const doctor = await resolveDoctor(req.body, hospitalId);
     if (!doctor) {
       return res.status(400).json({ error: 'Select an existing doctor before saving the prescription.' });
     }
@@ -82,11 +95,22 @@ exports.createPrescription = async (req, res) => {
     }
 
     const [result] = await db.query(
-      'INSERT INTO prescriptions (patient_id, doctor_id, medication, dosage, directions, start_date, end_date, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [patient.id, doctor.id, medication, dosage, directions, startDate, endDate, notes]
+      'INSERT INTO prescriptions (hospital_id, patient_id, doctor_id, medication, dosage, directions, start_date, end_date, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [hospitalId, patient.id, doctor.id, medication, dosage, directions, startDate, endDate, notes]
     );
 
-    const rows = await fetchPrescriptionRows('WHERE pr.id = ?', [result.insertId]);
+    await emitNotification({
+      hospitalId,
+      actorUserId: req.user?.id || null,
+      title: 'Prescription added',
+      message: `${medication} prescribed for ${patient.name} by ${doctor.name}.`,
+      level: 'Info',
+      type: 'audit',
+      entity_type: 'prescription',
+      entity_id: String(result.insertId),
+    });
+
+    const rows = await fetchPrescriptionRows(hospitalId, 'pr.id = ?', [result.insertId]);
     res.status(201).json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -95,7 +119,11 @@ exports.createPrescription = async (req, res) => {
 
 exports.updatePrescription = async (req, res) => {
   try {
-    const [existingRows] = await db.query('SELECT * FROM prescriptions WHERE id = ? LIMIT 1', [req.params.id]);
+    const hospitalId = req.tenantId;
+    const [existingRows] = await db.query(
+      'SELECT * FROM prescriptions WHERE id = ? AND hospital_id = ? LIMIT 1',
+      [req.params.id, hospitalId]
+    );
     const existingPrescription = existingRows[0];
 
     if (!existingPrescription) {
@@ -110,14 +138,14 @@ exports.updatePrescription = async (req, res) => {
     );
 
     const patient = shouldResolvePatient
-      ? await resolvePatient(req.body)
+      ? await resolvePatient(req.body, hospitalId)
       : { id: existingPrescription.patient_id };
     if (!patient) {
       return res.status(400).json({ error: 'Select an existing patient before updating the prescription.' });
     }
 
     const doctor = shouldResolveDoctor
-      ? await resolveDoctor(req.body)
+      ? await resolveDoctor(req.body, hospitalId)
       : { id: existingPrescription.doctor_id };
     if (!doctor) {
       return res.status(400).json({ error: 'Select an existing doctor before updating the prescription.' });
@@ -135,11 +163,11 @@ exports.updatePrescription = async (req, res) => {
     const notes = pickFirstNonEmpty(req.body.notes) || existingPrescription.notes || null;
 
     await db.query(
-      'UPDATE prescriptions SET patient_id = ?, doctor_id = ?, medication = ?, dosage = ?, directions = ?, start_date = ?, end_date = ?, notes = ? WHERE id = ?',
-      [patient.id, doctor.id, medication, dosage, directions, startDate, endDate, notes, req.params.id]
+      'UPDATE prescriptions SET patient_id = ?, doctor_id = ?, medication = ?, dosage = ?, directions = ?, start_date = ?, end_date = ?, notes = ? WHERE id = ? AND hospital_id = ?',
+      [patient.id, doctor.id, medication, dosage, directions, startDate, endDate, notes, req.params.id, hospitalId]
     );
 
-    const rows = await fetchPrescriptionRows('WHERE pr.id = ?', [req.params.id]);
+    const rows = await fetchPrescriptionRows(hospitalId, 'pr.id = ?', [req.params.id]);
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -148,7 +176,11 @@ exports.updatePrescription = async (req, res) => {
 
 exports.deletePrescription = async (req, res) => {
   try {
-    const [result] = await db.query('DELETE FROM prescriptions WHERE id = ?', [req.params.id]);
+    const hospitalId = req.tenantId;
+    const [result] = await db.query(
+      'DELETE FROM prescriptions WHERE id = ? AND hospital_id = ?',
+      [req.params.id, hospitalId]
+    );
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: 'Prescription not found' });
     }
