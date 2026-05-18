@@ -136,11 +136,29 @@ exports.updateReservation = async (req, res) => {
 };
 
 exports.deleteReservation = async (req, res) => {
+  const connection = await db.getConnection();
   try {
     const hospitalId = req.tenantId;
-    await db.query('DELETE FROM room_reservations WHERE id = ? AND hospital_id = ?', [req.params.id, hospitalId]);
-    res.json({ message: 'Reservation deleted successfully' });
+    const [rows] = await connection.query(
+      'SELECT room_id FROM room_reservations WHERE id = ? AND hospital_id = ?',
+      [req.params.id, hospitalId]
+    );
+    if (rows.length === 0) {
+      connection.release();
+      return res.status(404).json({ error: 'Reservation not found.' });
+    }
+    const { room_id } = rows[0];
+
+    await connection.beginTransaction();
+    await connection.query('DELETE FROM room_reservations WHERE id = ? AND hospital_id = ?', [req.params.id, hospitalId]);
+    await connection.query("UPDATE rooms SET status = 'Available' WHERE id = ? AND hospital_id = ?", [room_id, hospitalId]);
+    await connection.commit();
+
+    res.json({ message: 'Reservation deleted successfully.' });
   } catch (err) {
+    await connection.rollback();
     res.status(500).json({ error: err.message });
+  } finally {
+    connection.release();
   }
 };

@@ -62,7 +62,7 @@ const updateDoctor = async (req, res) => {
     }
 
     const [result] = await db.query(
-      'UPDATE doctors SET name = ?, email = ?, specialty = ?, department_id = ?, shift = ?, status = ?, phone = ?, notes = ? WHERE id = ? AND hospital_id = ?',
+      'UPDATE doctors SET name = ?, email = ?, specialty = ?, department_id = ?, shift = ?, status = ?, phone = COALESCE(?, phone), notes = COALESCE(?, notes) WHERE id = ? AND hospital_id = ?',
       [name, email, specialty, department.id, shift, status, phone || null, notes || null, id, hospitalId]
     );
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Doctor not found.' });
