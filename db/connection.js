@@ -9,6 +9,25 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit:   10,
   queueLimit:        0,
+  enableKeepAlive:   true,
+  keepAliveInitialDelayMs: 0,
+  acquireTimeoutMillis: 30000,
+});
+
+pool.on('error', (err) => {
+  console.error('Database pool error:', err);
+  if (err.code === 'PROTOCOL_CONNECTION_LOST') {
+    console.error('Database connection was closed.');
+  }
+  if (err.code === 'PROTOCOL_ERROR') {
+    console.error('Database protocol error.');
+  }
+  if (err.code === 'ER_CON_COUNT_ERROR') {
+    console.error('Database has too many connections.');
+  }
+  if (err.code === 'ER_AUTHENTICATION_PLUGIN_ERROR') {
+    console.error('Database authentication failed.');
+  }
 });
 
 const db = pool.promise();
@@ -16,6 +35,7 @@ const db = pool.promise();
 const testConnection = async () => {
   try {
     const conn = await db.getConnection();
+    await conn.query('SELECT 1');
     conn.release();
   } catch (err) {
     throw err;
