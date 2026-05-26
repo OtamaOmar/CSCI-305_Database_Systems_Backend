@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS users (
   UNIQUE KEY uq_users_hospital_email (hospital_id, email),
   KEY idx_users_hospital_role (hospital_id, role),
   KEY idx_users_hospital_department (hospital_id, department_id),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
@@ -75,9 +75,9 @@ CREATE TABLE IF NOT EXISTS invitations (
   KEY idx_invitations_hospital_email (hospital_id, email),
   KEY idx_invitations_hospital_created (hospital_id, created_at),
   KEY idx_invitations_registered_user (registered_user_id),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE,
-  FOREIGN KEY (invited_by) REFERENCES users(id) ON DELETE SET NULL,
-  FOREIGN KEY (registered_user_id) REFERENCES users(id) ON DELETE SET NULL
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (invited_by) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  FOREIGN KEY (registered_user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
@@ -96,7 +96,7 @@ CREATE TABLE IF NOT EXISTS patients (
   created_at   TIMESTAMP                            NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_patients_hospital_created (hospital_id, created_at),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS departments (
   PRIMARY KEY (id),
   UNIQUE KEY uq_departments_hospital_code (hospital_id, code),
   KEY idx_departments_hospital_name (hospital_id, name),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
@@ -135,17 +135,17 @@ CREATE TABLE IF NOT EXISTS doctors (
   PRIMARY KEY (id),
   UNIQUE KEY uq_doctors_hospital_email (hospital_id, email),
   KEY idx_doctors_hospital_created (hospital_id, created_at),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE,
-  FOREIGN KEY (department_id) REFERENCES departments(id)
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (department_id) REFERENCES departments(id) ON UPDATE CASCADE
 );
 
 ALTER TABLE departments
   ADD CONSTRAINT fk_departments_chairman
-  FOREIGN KEY (chairman_id) REFERENCES doctors(id);
+  FOREIGN KEY (chairman_id) REFERENCES doctors(id) ON UPDATE CASCADE;
 
 ALTER TABLE users
   ADD CONSTRAINT fk_users_department
-  FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL;
+  FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- ─────────────────────────────────────────
 -- Table: emergency_cases
@@ -166,7 +166,7 @@ CREATE TABLE IF NOT EXISTS emergency_cases (
   created_at    TIMESTAMP                              NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_emergency_cases_hospital_created (hospital_id, created_at),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
@@ -185,8 +185,8 @@ CREATE TABLE IF NOT EXISTS notifications (
   created_at    TIMESTAMP                           NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_notifications_hospital_created (hospital_id, created_at),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE,
-  FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
@@ -203,9 +203,9 @@ CREATE TABLE IF NOT EXISTS appointments (
   created_at        TIMESTAMP                          NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_appointments_hospital_date (hospital_id, appointment_date),
-  FOREIGN KEY (patient_id) REFERENCES patients(id),
-  FOREIGN KEY (doctor_id) REFERENCES doctors(id),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+  FOREIGN KEY (patient_id) REFERENCES patients(id) ON UPDATE CASCADE,
+  FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON UPDATE CASCADE,
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
@@ -225,9 +225,9 @@ CREATE TABLE IF NOT EXISTS prescriptions (
   created_at   TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_prescriptions_hospital_created (hospital_id, created_at),
-  FOREIGN KEY (patient_id) REFERENCES patients(id),
-  FOREIGN KEY (doctor_id) REFERENCES doctors(id),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+  FOREIGN KEY (patient_id) REFERENCES patients(id) ON UPDATE CASCADE,
+  FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON UPDATE CASCADE,
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
@@ -244,7 +244,7 @@ CREATE TABLE IF NOT EXISTS locations (
   created_at   TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_locations_hospital_created (hospital_id, created_at),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
@@ -260,8 +260,8 @@ CREATE TABLE IF NOT EXISTS medical_files (
   uploaded_date  DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_medical_files_hospital_uploaded (hospital_id, uploaded_date),
-  FOREIGN KEY (patient_id) REFERENCES patients(id),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+  FOREIGN KEY (patient_id) REFERENCES patients(id) ON UPDATE CASCADE,
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
@@ -278,8 +278,8 @@ CREATE TABLE IF NOT EXISTS rooms (
   PRIMARY KEY (id),
   UNIQUE KEY uq_rooms_hospital_number (hospital_id, room_number),
   KEY idx_rooms_hospital_status (hospital_id, status),
-  FOREIGN KEY (department_id) REFERENCES departments(id),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+  FOREIGN KEY (department_id) REFERENCES departments(id) ON UPDATE CASCADE,
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
@@ -296,9 +296,9 @@ CREATE TABLE IF NOT EXISTS room_reservations (
   created_at       TIMESTAMP                          NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_room_reservations_hospital_created (hospital_id, created_at),
-  FOREIGN KEY (room_id) REFERENCES rooms(id),
-  FOREIGN KEY (patient_id) REFERENCES patients(id),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+  FOREIGN KEY (room_id) REFERENCES rooms(id) ON UPDATE CASCADE,
+  FOREIGN KEY (patient_id) REFERENCES patients(id) ON UPDATE CASCADE,
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
@@ -314,7 +314,7 @@ CREATE TABLE IF NOT EXISTS contact_messages (
   created_at   TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_contact_messages_created (created_at),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE SET NULL
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
@@ -331,8 +331,8 @@ CREATE TABLE IF NOT EXISTS staff_schedule (
   created_at    TIMESTAMP                            NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_staff_schedule_hospital_date (hospital_id, `date`),
-  FOREIGN KEY (staff_id) REFERENCES users(id),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+  FOREIGN KEY (staff_id) REFERENCES users(id) ON UPDATE CASCADE,
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
@@ -348,8 +348,8 @@ CREATE TABLE IF NOT EXISTS ambulances (
   created_at        TIMESTAMP                          NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_ambulances_hospital_status (hospital_id, status),
-  FOREIGN KEY (driver_id) REFERENCES users(id),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+  FOREIGN KEY (driver_id) REFERENCES users(id) ON UPDATE CASCADE,
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
@@ -366,9 +366,9 @@ CREATE TABLE IF NOT EXISTS triage (
   created_at           TIMESTAMP                          NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_triage_hospital_created (hospital_id, created_at),
-  FOREIGN KEY (patient_id) REFERENCES patients(id),
-  FOREIGN KEY (assigned_doctor_id) REFERENCES doctors(id),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+  FOREIGN KEY (patient_id) REFERENCES patients(id) ON UPDATE CASCADE,
+  FOREIGN KEY (assigned_doctor_id) REFERENCES doctors(id) ON UPDATE CASCADE,
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
@@ -384,8 +384,8 @@ CREATE TABLE IF NOT EXISTS reports (
   created_at    TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_reports_hospital_created (hospital_id, created_at),
-  FOREIGN KEY (generated_by) REFERENCES users(id),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+  FOREIGN KEY (generated_by) REFERENCES users(id) ON UPDATE CASCADE,
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
@@ -404,9 +404,9 @@ CREATE TABLE IF NOT EXISTS hospital_files (
   created_at    TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_hospital_files_hospital_created (hospital_id, created_at),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE,
-  FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE SET NULL,
-  FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE,
+  FOREIGN KEY (patient_id) REFERENCES patients(id) ON DELETE SET NULL ON UPDATE CASCADE,
+  FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
@@ -422,9 +422,9 @@ CREATE TABLE IF NOT EXISTS doctor_patient_treatment (
   created_at     TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_treatment_hospital (hospital_id, created_at),
-  FOREIGN KEY (doctor_id) REFERENCES doctors(id),
-  FOREIGN KEY (patient_id) REFERENCES patients(id),
-  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE
+  FOREIGN KEY (doctor_id) REFERENCES doctors(id) ON UPDATE CASCADE,
+  FOREIGN KEY (patient_id) REFERENCES patients(id) ON UPDATE CASCADE,
+  FOREIGN KEY (hospital_id) REFERENCES hospitals(id) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- ─────────────────────────────────────────
